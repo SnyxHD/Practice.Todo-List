@@ -10,8 +10,10 @@ namespace To_Do_list
     {
         static string menuSelect;
         static string inputString;
+        static int changes = 0;
+        static int _autosaveThreshold = 5;
         static string dir = Environment.CurrentDirectory + @"\Data\";
-        static string Path = Environment.CurrentDirectory + "\\Data\\list.json";
+        static string path = Environment.CurrentDirectory + @"\Data\data.json";
         static string menuMessage = "--------- Menu ---------";
         static ConsoleColor color = ConsoleColor.White;
         public static bool isRunning = true;
@@ -24,9 +26,15 @@ namespace To_Do_list
                 Directory.CreateDirectory(dir);
 
             }
-            if (!File.Exists(Path))
+            if (!File.Exists(path))
             {
-                File.WriteAllText(Path, "[]");
+                var defaultData = new 
+                {
+                    todoList = new List<string>(),
+                    settings = new { autoSaveThreshold = 5 }
+                };
+
+                File.WriteAllText(path, JsonSerializer.Serialize(defaultData));
             }
 
             LoadJsonToList();
@@ -34,9 +42,10 @@ namespace To_Do_list
 
         internal static void Run()
         {
-            List<string> menuOptions = new List<string> { "Add To List", "Read List", "Remove From List", "Save & Quit" };
+            List<string> menuOptions = new List<string> { "Add To List", "Read List", "Remove From List", "Change Auto-Save", "Save & Quit" };
             while (isRunning)
             {
+                AutoSave();
                 menuSelect = ConsoleUtils.PrintMenu(menuMessage, menuOptions, true, color);
                 menuMessage = "--------- Menu ---------";
                 color = ConsoleColor.White;
@@ -52,6 +61,7 @@ namespace To_Do_list
                             addList(inputString);
                             menuMessage = "--- Added Successfully! ---";
                             color = ConsoleColor.Green;
+                            changes++;
                         }
                         else { Console.Clear(); menuMessage = "- Cant Add Empty String to List -"; color = ConsoleColor.Red; }
                         break;
@@ -76,10 +86,11 @@ namespace To_Do_list
                             try
                             {
                                 string rmIndex = Console.ReadLine();
-                                if(rmIndex == "all")
+                                if (rmIndex == "all")
                                 {
                                     todoList.Clear();
                                     menuMessage = "--- Removed All Successfully! ---";
+                                    changes++;
                                     break;
                                 }
                                 int rmLine = int.Parse(rmIndex);
@@ -110,6 +121,23 @@ namespace To_Do_list
                         menuMessage = "--- Nothing In List ---";
                         break;
 
+                    case "Change Auto-Save":
+                        Console.Write($"\nCurrent Threshold: {_autosaveThreshold}\nEnter Auto-Save Threshold: ");
+                        try
+                        {
+                            _autosaveThreshold = int.Parse(Console.ReadLine());
+                            changes += _autosaveThreshold;
+                            AutoSave();
+                            menuMessage = $"--- Auto-Save Threshold Changed to {_autosaveThreshold} Successfully! ---";
+                            color = ConsoleColor.Green;
+                        }
+                        catch (FormatException)
+                        {
+                            menuMessage = "Error! Please Enter a valid Number.";
+                            color = ConsoleColor.Red;
+                        }
+                        break;
+
                     case "Save & Quit":
                         isRunning = false;
                         SaveJsonToFile(todoList, true);
@@ -122,21 +150,37 @@ namespace To_Do_list
             }
         }
 
+        static void AutoSave()
+        {
+            if (changes >= _autosaveThreshold)
+            {
+                SaveJsonToFile(todoList);
+                changes = 0;
+                menuMessage = "--- Auto-Saved Successfully! ---";
+            }
+        }
         static void SaveJsonToFile(List<string> list, bool prettyPrint = false)
         {
-            var options = new JsonSerializerOptions();
-            options.WriteIndented = prettyPrint;
-            string jsonString = JsonSerializer.Serialize(todoList, options);
+            var options = new JsonSerializerOptions { WriteIndented = prettyPrint };
+            var data = new ToDoListData
+            {
+                todoList = list,
+                autosaveThreshold = _autosaveThreshold
+            };
 
-            File.WriteAllText(Path, jsonString);
+            string jsonString = JsonSerializer.Serialize(data, options);
+            File.WriteAllText(path, jsonString);
         }
 
         static void LoadJsonToList()
         {
-            var jsonData = File.ReadAllText(Path);
-            if (jsonData != "")
+
+            var jsonData = File.ReadAllText(path);
+            if (!string.IsNullOrEmpty(jsonData))
             {
-                todoList = JsonSerializer.Deserialize<List<string>>(jsonData);
+                var data = JsonSerializer.Deserialize<ToDoListData>(jsonData);
+                todoList = data.todoList;
+                _autosaveThreshold = data.autosaveThreshold;
             }
         }
 
@@ -166,4 +210,10 @@ namespace To_Do_list
             }
         }
     }
+}
+
+public class ToDoListData
+{
+    public List<string> todoList { get; set; }
+    public int autosaveThreshold { get; set; } = 5;
 }
