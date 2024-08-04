@@ -116,6 +116,7 @@ namespace To_Do_list
                                 Console.WriteLine($"Error!\n{ex.Message}");
                                 Console.ReadLine();
                             }
+                            changes++;
                             break;
                         }
                         menuMessage = "--- Nothing In List ---";
